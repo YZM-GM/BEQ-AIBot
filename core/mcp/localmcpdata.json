@@ -1,0 +1,122 @@
+{
+  "server_name": "MyToolsServer",
+  "tools": [
+    {
+      "name": "list_directory",
+      "description": "列出指定目录的文件树结构",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "目标目录的绝对或相对路径"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    },
+    {
+      "name": "create_text_file",
+      "description": "在指定位置生成txt文件",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "full_path": {
+            "type": "string",
+            "description": "目标目录的绝对路径"
+          },
+          "content": {
+            "type": "string",
+            "description": "目标的内容"
+          }
+        },
+        "required": [
+          "full_path",
+          "content"
+        ]
+      }
+    },
+    {
+      "name": "read_file",
+      "description": "读取指定位置的文件",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "full_path": {
+            "type": "string",
+            "description": "目标目录的绝对路径"
+          }
+        },
+        "required": [
+          "full_path"
+        ]
+      }
+    },
+    {
+      "name": "run_bash_command",
+      "description": "运行bash命令行。不允许依赖系统环境变量，应当使用硬编码。这个mcp是一次性的，上下文不连续，每次都会重置。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "命令行内容"
+          }
+        },
+        "required": [
+          "command"
+        ]
+      }
+    },
+    {
+      "name": "task_generate",
+      "description": "生成待执行任务列表",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "list[string]",
+            "description": "任务列表"
+          }
+        },
+        "required": [
+          "tasks"
+        ]
+      }
+    },
+    {
+      "name": "get_skill",
+      "description": "获取对应skill的详细信息步骤",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_name": {
+            "type": "string",
+            "description": "要具体查看的skill的名字"
+          }
+        },
+        "required": [
+          "skill_name"
+        ]
+      }
+    },
+    {
+      "name": "request_url",
+      "description": "发出url请求，可以是API请求，也可以是网页请求",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "需要请求的url"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    }
+  ]
+}

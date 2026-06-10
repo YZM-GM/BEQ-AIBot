@@ -1,0 +1,23 @@
+{
+  "https://mcp.api-inference.modelscope.net/3dd3be13b2f947/sse": {
+    "url": "https://mcp.api-inference.modelscope.net/3dd3be13b2f947/sse",
+    "enabled": true,
+    "name": "bing-cn-search",
+    "last_refresh_at": "2026-06-09T13:55:27.580738+00:00",
+    "last_error": ""
+  },
+  "https://mcp.api-inference.modelscope.net/94c3697dbc1945/sse": {
+    "url": "https://mcp.api-inference.modelscope.net/94c3697dbc1945/sse",
+    "enabled": true,
+    "name": "mcp-server/amap-maps",
+    "last_refresh_at": "2026-06-09T13:55:30.391441+00:00",
+    "last_error": ""
+  },
+  "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse": {
+    "url": "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse",
+    "enabled": true,
+    "name": "12306-mcp",
+    "last_refresh_at": "2026-06-09T13:55:36.384972+00:00",
+    "last_error": ""
+  }
+}

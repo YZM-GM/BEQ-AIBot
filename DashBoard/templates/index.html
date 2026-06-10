@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BotExpertQuest 控制台</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header>
+    <span class="logo">BEQ</span>
+    <h1>BotExpertQuest 控制台</h1>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-title">控制面板</div>
+      <button class="nav-btn active" data-panel="chat-panel">Chat</button>
+      <button class="nav-btn" data-panel="agent-panel">Agent</button>
+      <button class="nav-btn" data-panel="mcp-panel">MCP</button>
+      <button class="nav-btn" data-panel="skills-panel">Skills</button>
+      <button class="nav-btn" data-panel="soul-panel">Soul</button>
+    </aside>
+
+    <main class="workspace">
+      <section id="chat-panel" class="panel active">
+        <div class="panel-header">
+          <div>
+            <h2>聊天</h2>
+            <p>左侧管理单聊与群聊，顶部展示群聊任务进度。</p>
+          </div>
+          <div class="toolbar compact">
+            <button id="new-single-chat-btn" class="secondary">新建单聊</button>
+            <button id="new-group-chat-btn">新建群聊</button>
+          </div>
+        </div>
+        <div class="chat-layout">
+          <div class="conversation-pane">
+            <div id="conversation-list" class="list-pane"></div>
+          </div>
+          <div class="conversation-main">
+            <div id="conversation-meta" class="card compact-card"></div>
+            <div id="group-task-board" class="card compact-card"></div>
+            <div id="chat-box" class="chat-box"></div>
+            <div class="panel-footer">
+              <div class="input-row">
+                <textarea id="input" rows="1" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+                <button id="send-btn">发送</button>
+              </div>
+              <div id="usage-bar"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="agent-panel" class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Agent 管理</h2>
+            <p>创建实例、设置 soul、MCP 限制和 skill 限制。</p>
+          </div>
+          <div class="toolbar">
+            <button id="new-agent-btn">新建 Agent</button>
+            <button id="refresh-agent-btn" class="secondary">刷新</button>
+          </div>
+        </div>
+        <div class="split-layout">
+          <div class="list-pane" id="agent-list"></div>
+          <div class="detail-pane" id="agent-detail"></div>
+        </div>
+      </section>
+
+      <section id="mcp-panel" class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>MCP 管理</h2>
+            <p>查看本地与在线 MCP，新增 online server 并启停。</p>
+          </div>
+          <div class="toolbar">
+            <button id="refresh-mcp-btn" class="secondary">刷新 Online MCP</button>
+          </div>
+        </div>
+        <div class="stack-layout">
+          <div class="card">
+            <h3>新增 Online MCP</h3>
+            <div class="inline-form">
+              <input id="new-mcp-url" type="text" placeholder="输入 SSE MCP URL" />
+              <button id="add-mcp-btn">添加</button>
+            </div>
+          </div>
+          <div class="split-layout">
+            <div class="list-pane" id="mcp-server-list"></div>
+            <div class="detail-pane" id="mcp-detail"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="skills-panel" class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Skills 管理</h2>
+            <p>查看已装载 skill，读取内容，并启用或禁用。</p>
+          </div>
+          <div class="toolbar">
+            <button id="rescan-skills-btn" class="secondary">重新扫描</button>
+          </div>
+        </div>
+        <div class="split-layout">
+          <div class="list-pane" id="skills-list"></div>
+          <div class="detail-pane" id="skills-detail"></div>
+        </div>
+      </section>
+
+      <section id="soul-panel" class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Soul 管理</h2>
+            <p>管理 soul 模板库，新增、修改、删除。</p>
+          </div>
+          <div class="toolbar">
+            <button id="new-soul-btn">新建 Soul</button>
+            <button id="refresh-soul-btn" class="secondary">刷新</button>
+          </div>
+        </div>
+        <div class="split-layout">
+          <div class="list-pane" id="soul-list"></div>
+          <div class="detail-pane" id="soul-detail"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="assistant-card-template">
+    <div class="msg bot assistant-card">
+      <div class="model-tag"></div>
+      <div class="trace-container"></div>
+      <div class="final-answer"></div>
+      <div class="assistant-usage"></div>
+    </div>
+  </template>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

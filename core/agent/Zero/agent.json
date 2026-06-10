@@ -1,0 +1,16 @@
+{
+  "name": "Zero",
+  "soul": "default",
+  "allowed_mcps": [
+    "local",
+    "https://mcp.api-inference.modelscope.net/3dd3be13b2f947/sse",
+    "https://mcp.api-inference.modelscope.net/94c3697dbc1945/sse",
+    "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse"
+  ],
+  "allowed_skills": [
+    "systematic-travel-planning"
+  ],
+  "enabled": true,
+  "created_at": "2026-06-09T21:12:35",
+  "updated_at": "2026-06-09T22:19:47"
+}

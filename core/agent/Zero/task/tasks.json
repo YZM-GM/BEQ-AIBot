@@ -1,0 +1,65 @@
+[
+  {
+    "id": "task-40c35c3b-0e4f-45f1-8e6e-8a02dc2610c8",
+    "title": "搜索杭州到上海的交通方式（高铁/自驾/大巴）及时刻票价",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  },
+  {
+    "id": "task-eb3009f5-5f71-4e5d-9c2e-2aa41de3a25f",
+    "title": "搜索杭州旅游必去景点及攻略",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  },
+  {
+    "id": "task-bac53c70-19ac-4246-9ad2-4771277821eb",
+    "title": "搜索上海旅游必去景点及攻略",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  },
+  {
+    "id": "task-d9f692f8-c7bf-4423-a271-a4d691769a15",
+    "title": "搜索上海住宿推荐区域及预算",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  },
+  {
+    "id": "task-f66105dd-7f91-458c-b45f-05b59dae7fd2",
+    "title": "搜索上海美食推荐",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  },
+  {
+    "id": "task-837fd3b3-2c63-4b13-a4de-209bda84b3ad",
+    "title": "整合所有信息，撰写完整的杭州→上海旅游规划计划书",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  },
+  {
+    "id": "task-6384687f-2ceb-42c2-adc7-4c537a0e7213",
+    "title": "将计划书保存到桌面txt文件",
+    "status": "completed",
+    "created_at": "2026-06-09T00:08:31",
+    "updated_at": "2026-06-09T00:09:40",
+    "source": "tool",
+    "notes": ""
+  }
+]
