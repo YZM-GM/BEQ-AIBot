@@ -8,56 +8,67 @@
       "Zero"
     ],
     "created_at": "2026-06-09T23:43:19",
-    "updated_at": "2026-06-09T23:59:56",
-    "last_message_preview": "杭州旅行攻略生成在哪里了"
+    "updated_at": "2026-06-11T14:17:47",
+    "last_message_preview": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上"
   },
   {
-    "id": "conv-6a04e1a2-676b-41f5-87a5-26169e756cb0",
+    "id": "conv-c03c7a7b-ec46-423c-a6de-84c446acd67a",
     "type": "group",
-    "title": "测试群聊",
-    "owner_agent": "Zero",
-    "member_agents": [
-      "Zero"
-    ],
-    "created_at": "2026-06-09T23:43:19",
-    "updated_at": "2026-06-09T23:43:19",
-    "last_message_preview": ""
-  },
-  {
-    "id": "conv-e3b74ee6-9904-4db3-a0dc-b714217848a6",
-    "type": "group",
-    "title": "test1",
+    "title": "群聊-07:10:04",
     "owner_agent": "Zero",
     "member_agents": [
       "Zero",
+      "bot1",
+      "bot2",
+      "bot3"
+    ],
+    "created_at": "2026-06-12T15:10:07",
+    "updated_at": "2026-06-12T15:10:13",
+    "last_message_preview": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上"
+  },
+  {
+    "id": "conv-fd77a16e-a7b1-44e1-a57b-5596be2656e0",
+    "type": "group",
+    "title": "群聊-07:25:24",
+    "owner_agent": "Zero",
+    "member_agents": [
+      "Zero",
+      "bot1",
+      "bot2",
+      "bot3"
+    ],
+    "created_at": "2026-06-12T15:25:26",
+    "updated_at": "2026-06-12T15:25:33",
+    "last_message_preview": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上"
+  },
+  {
+    "id": "conv-bbd0eab8-45c4-4331-8e06-f79e0d09e409",
+    "type": "group",
+    "title": "群聊-07:40:34",
+    "owner_agent": "Zero",
+    "member_agents": [
+      "Zero",
+      "bot1",
+      "bot2",
+      "bot3"
+    ],
+    "created_at": "2026-06-12T15:40:37",
+    "updated_at": "2026-06-12T15:40:44",
+    "last_message_preview": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上"
+  },
+  {
+    "id": "conv-b01ad916-060c-4795-8d7f-5aaa3b9c92ec",
+    "type": "group",
+    "title": "群聊-08:21:08",
+    "owner_agent": "Zero",
+    "member_agents": [
+      "Zero",
+      "bot3",
+      "bot2",
       "bot1"
     ],
-    "created_at": "2026-06-09T23:51:36",
-    "updated_at": "2026-06-10T00:05:47",
-    "last_message_preview": "# 📢 群主最终总结\n\n## ✅ 任务完成情况一览\n\n| 项目 | 状态 |\n|:----|:----:|\n| **用户命令** | 「文件生成在哪里了」 |\n| **总任务数** | 1个子任务（查"
-  },
-  {
-    "id": "conv-ea33b190-0fe1-4869-a3df-80d841f4674c",
-    "type": "single",
-    "title": "Zero 单聊",
-    "owner_agent": "Zero",
-    "member_agents": [
-      "Zero"
-    ],
-    "created_at": "2026-06-10T00:03:47",
-    "updated_at": "2026-06-10T00:03:47",
-    "last_message_preview": ""
-  },
-  {
-    "id": "conv-75857e64-3a58-4495-a0d3-2b314e9830a6",
-    "type": "single",
-    "title": "Zero 单聊",
-    "owner_agent": "Zero",
-    "member_agents": [
-      "Zero"
-    ],
-    "created_at": "2026-06-10T00:03:52",
-    "updated_at": "2026-06-10T00:03:52",
-    "last_message_preview": ""
+    "created_at": "2026-06-12T16:21:10",
+    "updated_at": "2026-06-12T20:01:54",
+    "last_message_preview": "@bot1"
   }
 ]

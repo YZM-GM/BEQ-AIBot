@@ -107,7 +107,7 @@ async def run_bash_command(agent: Any, command: str) -> str:
 
 @mcp.tool()
 async def task_generate(agent: Any, tasks: list[str]) -> str:
-    agent.task.apply_tasks(tasks)
+    agent.task.apply_tasks(tasks, conversation_id=agent.current_conversation_id)
     return f"成功生成 {tasks} 任务。"
 
 @mcp.tool()

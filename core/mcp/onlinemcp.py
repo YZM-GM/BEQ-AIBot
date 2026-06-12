@@ -13,6 +13,7 @@
 空字典 {} 表示该 URL 尚未握手。
 """
 
+import asyncio
 import json
 import os
 from datetime import datetime, timezone
@@ -71,28 +72,30 @@ async def _handshake(url: str) -> dict:
 
 
 async def refresh_all() -> None:
-    """遍历 onlinemcpdata.json 中所有 URL，握手并刷新工具列表。"""
+    """并行握手所有 URL，全部完成后一次写入文件。"""
     data = _load()
     if not data:
-        print("[onlinemcp] onlinemcpdata.json 为空，无可握手的服务器。")
         return
 
-    for url in list(data.keys()):
-        print(f"[onlinemcp] 正在连接 {url} ...")
+    urls = list(data.keys())
+
+    async def _refresh_one(url: str) -> tuple[str, dict]:
         try:
+            print(f"[onlinemcp] 正在握手 {url}")
             info = await _handshake(url)
-            data[url] = info
-            tool_count = len(info.get("tools", []))
-            print(f"[onlinemcp] {url} 握手成功，获取 {tool_count} 个工具。")
+            print(f"[onlinemcp] 已握手 {url}")
+            return url, info
         except Exception as exc:
-            data[url] = {
+            return url, {
                 "error": str(exc),
                 "last_updated": datetime.now(timezone.utc).isoformat(),
             }
-            print(f"[onlinemcp] {url} 握手失败: {exc}")
+
+    results = await asyncio.gather(*[_refresh_one(url) for url in urls])
+    for url, info in results:
+        data[url] = info
 
     _save(data)
-    print(f"[onlinemcp] 结果已写入 {_DATA_FILE}")
 
 
 def load_tools() -> dict:

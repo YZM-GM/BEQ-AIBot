@@ -1,65 +1,51 @@
-[
-  {
-    "id": "task-40c35c3b-0e4f-45f1-8e6e-8a02dc2610c8",
-    "title": "搜索杭州到上海的交通方式（高铁/自驾/大巴）及时刻票价",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  },
-  {
-    "id": "task-eb3009f5-5f71-4e5d-9c2e-2aa41de3a25f",
-    "title": "搜索杭州旅游必去景点及攻略",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  },
-  {
-    "id": "task-bac53c70-19ac-4246-9ad2-4771277821eb",
-    "title": "搜索上海旅游必去景点及攻略",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  },
-  {
-    "id": "task-d9f692f8-c7bf-4423-a271-a4d691769a15",
-    "title": "搜索上海住宿推荐区域及预算",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  },
-  {
-    "id": "task-f66105dd-7f91-458c-b45f-05b59dae7fd2",
-    "title": "搜索上海美食推荐",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  },
-  {
-    "id": "task-837fd3b3-2c63-4b13-a4de-209bda84b3ad",
-    "title": "整合所有信息，撰写完整的杭州→上海旅游规划计划书",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  },
-  {
-    "id": "task-6384687f-2ceb-42c2-adc7-4c537a0e7213",
-    "title": "将计划书保存到桌面txt文件",
-    "status": "completed",
-    "created_at": "2026-06-09T00:08:31",
-    "updated_at": "2026-06-09T00:09:40",
-    "source": "tool",
-    "notes": ""
-  }
-]
+{
+  "conv-8befb6e0-2ddc-42e2-a9b7-38a4fec7dfff": [
+    {
+      "id": "task-28c55874-1613-483e-a39d-289331f6e46f",
+      "title": "【bot1】交通与景点调研：查询杭州到成都的高铁/动车车次信息（出发时间、到达时间、历时、票价），整理成都主要景点之间的空间分布和通勤距离（宽窄巷子、武侯祠、杜甫草堂、春熙路、熊猫基地等），输出调研报告备用。",
+      "status": "pending",
+      "created_at": "2026-06-10T16:39:19",
+      "updated_at": "2026-06-10T16:39:19",
+      "source": "tool",
+      "notes": ""
+    },
+    {
+      "id": "task-1b6a7eb8-0c90-4822-8f17-090d7b209f7b",
+      "title": "【bot2】酒店与餐饮调研：查询成都春熙路/宽窄巷子附近的高性价比酒店推荐（含价格、评分），整理成都必吃特色餐厅（火锅、川菜馆、小吃街等），输出详细的酒店与餐饮推荐清单备用。",
+      "status": "pending",
+      "created_at": "2026-06-10T16:39:19",
+      "updated_at": "2026-06-10T16:39:19",
+      "source": "tool",
+      "notes": ""
+    },
+    {
+      "id": "task-32aaf116-f0c6-4abb-91b5-98782275d9f2",
+      "title": "【bot3】行程整合与文档生成：等待bot1和bot2完成调研后，整合所有信息，按照系统化旅行规划(STP)框架，制定一份从杭州到成都的详细3日游攻略（含详细的每小时时间安排、通勤方式与耗时、酒店住宿、饭店选择），生成一个名为「杭州到成都3日游详细攻略.txt」的文件，保存到桌面路径 C:\\Users\\11765\\Desktop",
+      "status": "pending",
+      "created_at": "2026-06-10T16:39:19",
+      "updated_at": "2026-06-10T16:39:19",
+      "source": "tool",
+      "notes": ""
+    }
+  ],
+  "conv-28108b1e-fe87-48cc-8408-4ef764e99492": [
+    {
+      "id": "task-374ada11-7c2a-459c-9a27-ac53647625fd",
+      "title": "创建杭州到成都旅游安排文档",
+      "status": "pending",
+      "created_at": "2026-06-11T13:19:50",
+      "updated_at": "2026-06-11T13:19:50",
+      "source": "tool",
+      "notes": ""
+    },
+    {
+      "id": "task-9c444f6f-8c7c-4d2e-a52d-f74ae9877a56",
+      "title": "查询成都回杭州的返程火车信息",
+      "status": "pending",
+      "created_at": "2026-06-11T13:19:50",
+      "updated_at": "2026-06-11T13:19:50",
+      "source": "tool",
+      "notes": ""
+    }
+  ]
+}

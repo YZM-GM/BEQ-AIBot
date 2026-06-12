@@ -17,7 +17,7 @@ from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
 
 import core.mcp.localmcp as lm
-from core.mcp.mcpmanager import list_enabled_server_urls
+from core.mcp.mcpmanager import list_enabled_server_urls, get_enabled_local_tool_names
 
 _LOCAL_FUNCS: dict[str, object] = {
     "list_directory": lm.list_directory,
@@ -59,17 +59,23 @@ def _to_openai_spec(tool: dict) -> dict:
 def _is_tool_allowed(tool_name: str, interface_id: str, allow_set: set[str] | None) -> bool:
     if allow_set is None:
         return True
+    # 허용 목록이 "local" 하나만 있으면 모든 로컬 도구 허용 (레거시 지원)
+    if "local" in allow_set:
+        return True
     return tool_name in allow_set or interface_id in allow_set
-
 
 
 def get_all_tools_spec(allow_mcps: list[str] | None = None) -> list[dict]:
     specs: list[dict] = []
     allow_set = set(allow_mcps) if allow_mcps else None
+    globally_enabled_local = get_enabled_local_tool_names()
 
     local = _load_json(_LOCAL_DATA)
     for tool in local.get("tools", []):
-        if not _is_tool_allowed(tool.get("name", ""), "local", allow_set):
+        tool_name = tool.get("name", "")
+        if tool_name not in globally_enabled_local:
+            continue
+        if not _is_tool_allowed(tool_name, f"local::{tool_name}", allow_set):
             continue
         specs.append(_to_openai_spec(tool))
 
@@ -89,12 +95,16 @@ def get_all_tools_spec(allow_mcps: list[str] | None = None) -> list[dict]:
 def _build_source_map(allow_mcps: list[str] | None = None) -> dict[str, str]:
     source: dict[str, str] = {}
     allow_set = set(allow_mcps) if allow_mcps else None
+    globally_enabled_local = get_enabled_local_tool_names()
 
     local = _load_json(_LOCAL_DATA)
     for tool in local.get("tools", []):
-        if not _is_tool_allowed(tool.get("name", ""), "local", allow_set):
+        tool_name = tool.get("name", "")
+        if tool_name not in globally_enabled_local:
             continue
-        source[tool["name"]] = "local"
+        if not _is_tool_allowed(tool_name, f"local::{tool_name}", allow_set):
+            continue
+        source[tool_name] = "local"
 
     enabled_servers = list_enabled_server_urls()
     online = _load_json(_ONLINE_DATA)

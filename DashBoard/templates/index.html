@@ -27,7 +27,6 @@
         <div class="panel-header">
           <div>
             <h2>聊天</h2>
-            <p>左侧管理单聊与群聊，顶部展示群聊任务进度。</p>
           </div>
           <div class="toolbar compact">
             <button id="new-single-chat-btn" class="secondary">新建单聊</button>
@@ -36,15 +35,16 @@
         </div>
         <div class="chat-layout">
           <div class="conversation-pane">
-            <div id="conversation-list" class="list-pane"></div>
+            <div id="conversation-list"></div>
           </div>
           <div class="conversation-main">
-            <div id="conversation-meta" class="card compact-card"></div>
-            <div id="group-task-board" class="card compact-card"></div>
+            <div id="conversation-meta" class="conv-meta-bar"></div>
+       
             <div id="chat-box" class="chat-box"></div>
             <div class="panel-footer">
               <div class="input-row">
                 <textarea id="input" rows="1" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+                <button id="team-mode-btn" class="secondary team-mode-btn" title="团队任务模式：激活后群聊启动多 agent 分工协作" aria-pressed="false">团队</button>
                 <button id="send-btn">发送</button>
               </div>
               <div id="usage-bar"></div>
@@ -64,10 +64,7 @@
             <button id="refresh-agent-btn" class="secondary">刷新</button>
           </div>
         </div>
-        <div class="split-layout">
-          <div class="list-pane" id="agent-list"></div>
-          <div class="detail-pane" id="agent-detail"></div>
-        </div>
+        <div class="row-list" id="agent-list"></div>
       </section>
 
       <section id="mcp-panel" class="panel">
@@ -88,10 +85,7 @@
               <button id="add-mcp-btn">添加</button>
             </div>
           </div>
-          <div class="split-layout">
-            <div class="list-pane" id="mcp-server-list"></div>
-            <div class="detail-pane" id="mcp-detail"></div>
-          </div>
+          <div class="row-list-wrap"><div class="row-list" id="mcp-server-list"></div></div>
         </div>
       </section>
 
@@ -105,10 +99,7 @@
             <button id="rescan-skills-btn" class="secondary">重新扫描</button>
           </div>
         </div>
-        <div class="split-layout">
-          <div class="list-pane" id="skills-list"></div>
-          <div class="detail-pane" id="skills-detail"></div>
-        </div>
+        <div class="row-list" id="skills-list"></div>
       </section>
 
       <section id="soul-panel" class="panel">
@@ -122,10 +113,7 @@
             <button id="refresh-soul-btn" class="secondary">刷新</button>
           </div>
         </div>
-        <div class="split-layout">
-          <div class="list-pane" id="soul-list"></div>
-          <div class="detail-pane" id="soul-detail"></div>
-        </div>
+        <div class="row-list" id="soul-list"></div>
       </section>
     </main>
   </div>
@@ -139,6 +127,7 @@
     </div>
   </template>
 
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/static/js/main.js"></script>
 </body>
 </html>

@@ -6,18 +6,19 @@ const usageBar = document.getElementById("usage-bar");
 const state = {
   currentPanel: "chat-panel",
   agents: [],
-  selectedAgent: null,
   selectedSkill: null,
   selectedSoul: null,
   mcpData: null,
-  selectedMcpId: null,
   skills: [],
   souls: [],
   conversations: [],
   selectedConversation: null,
-  groupTaskBoard: [],
-  scheduler: [],
+  teamMode: false,
 };
+
+// 全局持久 SSE 状态
+let _globalES = null;
+let _pendingTurnId = null;
 
 function escapeHtml(s) {
   return String(s)
@@ -55,67 +56,141 @@ function autoResize() {
   input.style.height = Math.min(input.scrollHeight, 160) + "px";
 }
 
+/* ── row-list helpers ─────────────────────────────────────────── */
+function toggleHtml(checked, name, key) {
+  return `<label class="toggle"><input type="checkbox" data-toggle="${escapeHtml(key)}" ${checked ? "checked" : ""} /><span class="slider"></span></label>`;
+}
+
+function renderRowList(containerId, items, expandedKey, renderHead, renderMeta, renderBody, options = {}) {
+  const el = document.getElementById(containerId);
+  if (!items.length) {
+    el.innerHTML = '<div class="empty-state">暂无数据</div>';
+    return;
+  }
+  el.innerHTML = items.map((item) => {
+    const key = item.name || item.id || item.url || "";
+    const expanded = expandedKey === key;
+    const hasToggle = options.toggleEnabled ? options.toggleEnabled(item) : item.hasOwnProperty("enabled");
+    return `
+      <div class="row ${expanded ? "expanded" : ""}" data-row="${escapeHtml(key)}">
+        <div class="row-head" data-action="expand">
+          <span class="row-name">${renderHead(item)}</span>
+          <span class="row-meta">${renderMeta(item)}</span>
+          ${hasToggle ? toggleHtml(item.enabled, "", key) : ""}
+          <span class="row-caret">▶</span>
+        </div>
+        <div class="row-body">${renderBody(item)}</div>
+      </div>
+    `;
+  }).join("");
+
+  // 行点击 → 展开/收起（点击 toggle 不冒泡）
+  el.querySelectorAll(".row-head").forEach((head) => {
+    head.addEventListener("click", (e) => {
+      if (e.target.closest("input[type='checkbox']")) return;
+      const row = head.closest(".row");
+      const wasExpanded = row.classList.contains("expanded");
+      row.classList.toggle("expanded");
+      if (!wasExpanded && options.onExpand) {
+        const key = row.dataset.row;
+        const item = items.find((x) => (x.name || x.id || x.url) === key);
+        options.onExpand(item, row).catch(console.error);
+      }
+    });
+  });
+
+  // toggle 变化 → 调用面板
+  if (options.onToggle) {
+    el.querySelectorAll("input[data-toggle]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const row = input.closest(".row");
+        const key = row.dataset.row;
+        options.onToggle(key, input.checked);
+      });
+    });
+  }
+}
+
+/* ── 全局持久 SSE 流 ──────────────────────────────────────────── */
+function connectGlobalStream() {
+  if (_globalES) _globalES.close();
+  _globalES = new EventSource("/api/stream");
+  _globalES.onmessage = handleGlobalEvent;
+  _globalES.onerror = () => {
+    // EventSource 自动重连；若有 pending turn 则保护性恢复按钮防死锁
+    if (sendBtn.disabled) {
+      sendBtn.disabled = false;
+      _pendingTurnId = null;
+      appendChatEvent("error", "连接中断", "SSE 断开，请重试");
+      input.focus();
+    }
+  };
+}
+
+function handleGlobalEvent(evt) {
+  let payload;
+  try { payload = JSON.parse(evt.data); } catch (_) { return; }
+
+  const type = payload.type;
+  const convId = payload.conversation_id;
+  const turnId = payload.turn_id;
+  const data = payload.data || {};
+
+  // turn_complete：恢复发送按钮，与当前选中 conversation 无关
+  if (type === "turn_complete") {
+    if (turnId === _pendingTurnId) {
+      sendBtn.disabled = false;
+      input.focus();
+      _pendingTurnId = null;
+      loadConversations().catch(console.error);
+    }
+    return;
+  }
+
+  // 只渲染当前选中 conversation 的事件
+  if (!convId || convId !== state.selectedConversation?.id) return;
+
+  const isGroup = state.selectedConversation?.type === "group";
+  const agentName = data.agent_name || (isGroup ? "Agent" : (state.selectedConversation?.owner_agent || "Agent"));
+  const turnKey = data.turn_key || agentName;
+
+  console.debug("[SSE]", type, "agent=", agentName, "turnKey=", turnKey);
+
+  if (type === "cycle_message") {
+    appendCycleMessage(agentName, turnKey, data.content || "", data.cycle_index);
+  } else if (type === "tool_call") {
+    appendToolCall(agentName, turnKey, data.tool_name || "", data.arguments || {});
+  } else if (type === "tool_result") {
+    appendToolResult(agentName, turnKey, data.tool_name || "", data.result || "");
+  } else if (type === "final_answer" || type === "agent_message") {
+    appendFinalAnswer(agentName, turnKey, data.content || "");
+  } else if (type === "error") {
+    appendChatEvent("error", "错误", payload.message || data.message || "");
+    if (sendBtn.disabled && turnId === _pendingTurnId) {
+      sendBtn.disabled = false;
+      _pendingTurnId = null;
+      input.focus();
+    }
+  }
+}
+
+/* ── Chat panel ───────────────────────────────────────────────── */
 function renderConversationMeta() {
   const meta = document.getElementById("conversation-meta");
   const conversation = state.selectedConversation;
   if (!conversation) {
-    meta.innerHTML = '<div class="empty-state">请选择会话</div>';
+    meta.innerHTML = '<span>请选择会话</span>';
     return;
   }
+  const tag = conversation.type === "group" ? "群聊" : "单聊";
   const memberText = conversation.type === "group"
-    ? `群主：${escapeHtml(conversation.owner_agent || "-")} | 成员：${escapeHtml((conversation.member_agents || []).join(", "))}`
-    : `当前 Agent：${escapeHtml(conversation.owner_agent || "-")}`;
+    ? `群主：${escapeHtml(conversation.owner_agent || "-")} · 成员：${escapeHtml((conversation.member_agents || []).join(", "))}`
+    : `Agent：${escapeHtml(conversation.owner_agent || "-")}`;
   meta.innerHTML = `
-    <div>
-      <h3>${escapeHtml(conversation.title)}</h3>
-      <p>${conversation.type === "group" ? "群聊" : "单聊"} · ${memberText}</p>
-    </div>
+    <h3>${escapeHtml(conversation.title)}</h3>
+    <span class="badge">${tag}</span>
+    <p>${memberText}</p>
   `;
-}
-
-function renderTaskBoard() {
-  const board = document.getElementById("group-task-board");
-  const conversation = state.selectedConversation;
-  if (!conversation || conversation.type !== "group") {
-    board.innerHTML = '<div class="empty-state">当前会话无需展示群聊任务板</div>';
-    return;
-  }
-  if (!state.groupTaskBoard.length) {
-    board.innerHTML = '<div class="empty-state">等待群主生成任务安排</div>';
-    return;
-  }
-  board.innerHTML = `
-    <h3>任务安排与进度</h3>
-    <div class="task-board-grid">
-      ${state.groupTaskBoard.map((task) => `
-        <div class="list-item">
-          <h4>${escapeHtml(task.title)}</h4>
-          <p>执行者：${escapeHtml(task.assignee || "-")}</p>
-          <div class="meta-row">
-            <span class="badge">${escapeHtml(task.status || "pending")}</span>
-          </div>
-          <p>${escapeHtml(task.progress_note || "")}</p>
-        </div>
-      `).join("")}
-    </div>
-  `;
-}
-
-function appendChatEvent(roleClass, title, body = "", meta = "") {
-  const el = document.createElement("div");
-  el.className = `msg ${roleClass}`;
-  el.innerHTML = `
-    <div class="trace-title">${escapeHtml(title)}</div>
-    ${meta ? `<div class="trace-body">${escapeHtml(meta)}</div>` : ""}
-    ${body ? `<div class="final-answer">${escapeHtml(body)}</div>` : ""}
-  `;
-  chatBox.appendChild(el);
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-function clearChatView() {
-  chatBox.innerHTML = "";
-  usageBar.textContent = "";
 }
 
 function renderConversationList() {
@@ -135,18 +210,154 @@ function renderConversationList() {
   `).join("");
   el.querySelectorAll(".list-item").forEach((node) => {
     node.addEventListener("click", () => {
+      const prev = state.selectedConversation;
       state.selectedConversation = state.conversations.find((item) => item.id === node.dataset.key) || null;
-      state.groupTaskBoard = [];
-      clearChatView();
       renderConversationList();
       renderConversationMeta();
-      renderTaskBoard();
+      if (!prev || prev.id !== state.selectedConversation?.id) {
+        loadChatHistory(state.selectedConversation?.id);
+      }
     });
   });
 }
 
+function clearChatView() {
+  chatBox.innerHTML = "";
+  usageBar.textContent = "";
+}
+
+async function loadChatHistory(convId) {
+  clearChatView();
+  if (!convId) return;
+  try {
+    const data = await api(`/api/conversations/${encodeURIComponent(convId)}/history`);
+    for (const record of data.records || []) {
+      if (record.role === "user") {
+        const el = document.createElement("div");
+        el.className = "msg user";
+        el.textContent = record.content || "";
+        chatBox.appendChild(el);
+      } else if (record.role === "agent") {
+        appendHistoryBlock(record.agent_name || "Agent", record.turn_key || record.agent_name, record.content || "");
+      }
+    }
+    chatBox.scrollTop = chatBox.scrollHeight;
+  } catch (_) {}
+}
+
+function appendChatEvent(roleClass, title, body = "") {
+  const el = document.createElement("div");
+  el.className = `msg ${roleClass}`;
+  el.innerHTML = `
+    <div class="trace-title">${escapeHtml(title)}</div>
+    ${body ? `<div class="final-answer">${escapeHtml(body)}</div>` : ""}
+  `;
+  chatBox.appendChild(el);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// ── agent 块管理 ─────────────────────────────────────────────────
+// 每次 CallAgent 产生唯一 turn_key，对应一个独立的 .agent-block
+// 同一 turn_key 的事件追加在同一块里；不同 turn_key 新建块
+
+function getOrCreateAgentBlock(agentName, turnKey) {
+  const key = turnKey || agentName;
+  let block = chatBox.querySelector(`.agent-block[data-turn-key="${CSS.escape(key)}"]`);
+  if (!block) {
+    // 计算该 agent 本次是第几次发言
+    const prev = chatBox.querySelectorAll(`.agent-block[data-agent="${CSS.escape(agentName)}"]`).length;
+    block = document.createElement("div");
+    block.className = "agent-block";
+    block.dataset.agent = agentName;
+    block.dataset.turnKey = key;
+    block.innerHTML = `
+      <div class="agent-block-header">
+        <span>${escapeHtml(agentName)}</span>
+        ${prev > 0 ? `<span class="agent-turn-label">第 ${prev + 1} 次发言</span>` : ""}
+      </div>
+      <div class="agent-block-body"></div>
+    `;
+    chatBox.appendChild(block);
+  }
+  chatBox.scrollTop = chatBox.scrollHeight;
+  return block;
+}
+
+function getBlockBody(agentName, turnKey) {
+  return getOrCreateAgentBlock(agentName, turnKey).querySelector(".agent-block-body");
+}
+
+// 中间思考轮次（cycle_message）→ 折叠 details
+function appendCycleMessage(agentName, turnKey, content, cycleIndex) {
+  if (!content) return;
+  const body = getBlockBody(agentName, turnKey);
+  const details = document.createElement("details");
+  details.className = "cycle-trace";
+  details.innerHTML = `
+    <summary>思考 ${cycleIndex != null ? `#${cycleIndex}` : ""}</summary>
+    <div class="cycle-body">${escapeHtml(content)}</div>
+  `;
+  body.appendChild(details);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// 工具调用（tool_call）→ 单行徽章
+function appendToolCall(agentName, turnKey, toolName, args) {
+  const body = getBlockBody(agentName, turnKey);
+  const row = document.createElement("div");
+  row.className = "tool-row";
+  const argStr = args && Object.keys(args).length
+    ? Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ")
+    : "";
+  row.innerHTML = `<span class="tool-badge">⚙ ${escapeHtml(toolName)}</span>
+    <span style="color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${escapeHtml(argStr)}</span>`;
+  body.appendChild(row);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// 工具结果（tool_result）→ 可展开单行
+function appendToolResult(agentName, turnKey, toolName, result) {
+  const body = getBlockBody(agentName, turnKey);
+  const row = document.createElement("div");
+  row.className = "tool-row";
+  const preview = (result || "").slice(0, 80).replace(/\n/g, " ");
+  row.innerHTML = `<span class="tool-badge result">↩ ${escapeHtml(toolName)}</span>
+    <span class="tool-result-toggle" title="展开/收起结果">▾</span>
+    <span style="color:var(--muted);font-size:11px;">${escapeHtml(preview)}${result && result.length > 80 ? "…" : ""}</span>`;
+  const content = document.createElement("div");
+  content.className = "tool-result-content";
+  content.textContent = result || "";
+  row.appendChild(content);
+  row.querySelector(".tool-result-toggle").addEventListener("click", () => {
+    content.classList.toggle("visible");
+  });
+  body.appendChild(row);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// 最终答案（final_answer）→ markdown 渲染，分隔线上方
+function appendFinalAnswer(agentName, turnKey, content) {
+  if (!content) return;
+  const body = getBlockBody(agentName, turnKey);
+  const div = document.createElement("div");
+  div.className = "agent-final md-content";
+  div.innerHTML = marked.parse(content);
+  body.appendChild(div);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// 历史回放（只还原 final_answer 记录，简洁显示）
+function appendHistoryBlock(agentName, turnKey, content) {
+  if (!content) return;
+  const body = getBlockBody(agentName, turnKey || agentName);
+  const div = document.createElement("div");
+  div.className = "agent-final md-content";
+  div.innerHTML = marked.parse(content);
+  body.appendChild(div);
+}
+
 async function createSingleConversation() {
-  const ownerAgent = state.selectedAgent?.name || state.agents[0]?.name;
+  const ownerAgent = state.agents[0]?.name;
   if (!ownerAgent) {
     alert("没有可用 agent");
     return;
@@ -196,74 +407,20 @@ async function sendMessage() {
   sendBtn.disabled = true;
   usageBar.textContent = "";
 
-  appendChatEvent("user", "用户", text);
+  // 立即在本地显示用户消息（乐观更新）
+  const userEl = document.createElement("div");
+  userEl.className = "msg user";
+  userEl.textContent = text;
+  chatBox.appendChild(userEl);
+  chatBox.scrollTop = chatBox.scrollHeight;
 
   try {
     const createData = await api(`/api/conversations/${encodeURIComponent(conversation.id)}/turns`, {
       method: "POST",
-      body: { message: text },
+      body: { message: text, team_mode: state.teamMode },
     });
-
-    const es = new EventSource(`/api/conversations/${encodeURIComponent(conversation.id)}/stream/${encodeURIComponent(createData.turn_id)}`);
-    es.onmessage = (evt) => {
-      const payload = JSON.parse(evt.data);
-      const type = payload.type;
-      const data = payload.data || {};
-
-      if (type === "conversation_meta") {
-        state.scheduler = data.scheduler || [];
-      } else if (type === "task_board") {
-        state.groupTaskBoard = data.tasks || [];
-        renderTaskBoard();
-      } else if (type === "agent_message") {
-        appendChatEvent("bot", data.agent_name || "Agent", data.content || "", data.role === "owner" ? "群主" : "成员");
-      } else if (type === "tool_call") {
-        appendChatEvent("bot", `${data.agent_name || "Agent"} 调用工具`, JSON.stringify(data.arguments || {}, null, 2), data.tool_name || "");
-      } else if (type === "tool_result") {
-        appendChatEvent("bot", `${data.agent_name || "Agent"} 工具返回`, data.result || "", data.tool_name || "");
-      } else if (type === "group_status") {
-        appendChatEvent("bot", `${data.agent_name || "Agent"} 状态`, data.status || "", data.role || "");
-      } else if (type === "final_answer") {
-        if (data.task_board) {
-          state.groupTaskBoard = data.task_board;
-          renderTaskBoard();
-        }
-        appendChatEvent("bot", "最终总结", data.content || "");
-        es.close();
-        sendBtn.disabled = false;
-        input.focus();
-        loadConversations().catch(console.error);
-      } else if (type === "cycle_message") {
-        appendChatEvent("bot", conversation.owner_agent || "Agent", data.content || payload.message || "");
-      } else if (type === "tool_call") {
-        appendChatEvent("bot", "工具调用", JSON.stringify(data.arguments || {}, null, 2), data.tool_name || "");
-      } else if (type === "tool_result") {
-        appendChatEvent("bot", "工具返回", data.result || "", data.tool_name || "");
-      } else if (type === "final_answer") {
-        appendChatEvent("bot", "回答", data.content || "");
-        es.close();
-        sendBtn.disabled = false;
-        input.focus();
-        loadConversations().catch(console.error);
-      } else if (type === "error") {
-        appendChatEvent("error", "错误", payload.message || data.message || "");
-        es.close();
-        sendBtn.disabled = false;
-        input.focus();
-      } else if (type === "turn_end") {
-        es.close();
-        sendBtn.disabled = false;
-        input.focus();
-        loadConversations().catch(console.error);
-      }
-    };
-
-    es.onerror = () => {
-      appendChatEvent("error", "错误", "流连接中断");
-      es.close();
-      sendBtn.disabled = false;
-      input.focus();
-    };
+    // 记录等待中的 turn_id，handleGlobalEvent 用它匹配 turn_complete 来恢复按钮
+    _pendingTurnId = createData.turn_id;
   } catch (err) {
     appendChatEvent("error", "网络错误", String(err.message || err));
     sendBtn.disabled = false;
@@ -271,61 +428,17 @@ async function sendMessage() {
   }
 }
 
-function renderAgentOptions() {
-  if (!state.selectedAgent && state.agents.length) {
-    state.selectedAgent = state.agents[0];
-  }
-}
-
-function renderList(containerId, items, activeKey, clickHandler, renderItem) {
-  const el = document.getElementById(containerId);
-  if (!items.length) {
-    el.innerHTML = '<div class="empty-state">暂无数据</div>';
-    return;
-  }
-  el.innerHTML = items.map((item) => renderItem(item, item.name === activeKey || item.url === activeKey || item.id === activeKey)).join("");
-  el.querySelectorAll(".list-item").forEach((node) => {
-    node.addEventListener("click", () => clickHandler(node.dataset.key));
-  });
-}
-
-function renderAgentList() {
-  renderList(
-    "agent-list",
-    state.agents,
-    state.selectedAgent?.name,
-    (name) => {
-      state.selectedAgent = state.agents.find((item) => item.name === name) || null;
-      renderAgentList();
-      renderAgentDetail();
-      renderAgentOptions();
-    },
-    (item, active) => `
-      <div class="list-item ${active ? "active" : ""}" data-key="${escapeHtml(item.name)}">
-        <h4>${escapeHtml(item.name)}</h4>
-        <p>soul: ${escapeHtml(item.soul || "default")}</p>
-        <div class="meta-row">
-          <span class="badge ${item.enabled ? "success" : "danger"}">${item.enabled ? "启用" : "禁用"}</span>
-          <span class="badge">MCP ${item.allowed_mcps?.length || 0}</span>
-          <span class="badge">Skill ${item.allowed_skills?.length || 0}</span>
-        </div>
-      </div>
-    `
-  );
-}
-
+/* ── Agent panel ──────────────────────────────────────────────── */
 function currentMcpOptions() {
   const items = state.mcpData?.items || [];
   return items.map((item) => ({
     value: item.id,
-    label: item.kind === "local" ? "本地 MCP" : (item.name || item.url || item.id),
+    label: item.kind === "local" ? `[本地] ${item.name}` : (item.name || item.url || item.id),
   }));
 }
-
 function currentSkillNames() {
   return state.skills.map((item) => item.name).sort();
 }
-
 function currentSoulNames() {
   return state.souls.map((item) => item.name).sort();
 }
@@ -344,368 +457,440 @@ function renderCheckboxes(items, selected) {
   `;
 }
 
-function renderAgentDetail(isNew = false) {
-  const target = isNew ? {
-    name: "",
-    soul: state.souls[0]?.name || "default",
-    allowed_mcps: [],
-    allowed_skills: [],
-    enabled: true,
-  } : state.selectedAgent;
-  const el = document.getElementById("agent-detail");
-  if (!target) {
-    el.innerHTML = '<div class="empty-state">请选择一个 agent</div>';
-    return;
+function renderAgents() {
+  renderRowList(
+    "agent-list",
+    state.agents,
+    null,
+    (item) => escapeHtml(item.name),
+    (item) => `MCP ${item.allowed_mcps?.length || 0} · Skill ${item.allowed_skills?.length || 0} · ${item.soul || "default"}`,
+    (item) => `
+      <form data-agent-form="${escapeHtml(item.name)}">
+        <div class="form-grid">
+          <label class="form-field">
+            <span>Soul 模板（应用后覆盖当前 soul 内容）</span>
+            <select name="soul">
+              ${currentSoulNames().map((name) => `<option value="${escapeHtml(name)}" ${name === item.soul ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            </select>
+          </label>
+          <button type="button" class="secondary" style="align-self:flex-end;" data-apply-soul="${escapeHtml(item.name)}">应用模板</button>
+          <label class="form-field full">
+            <span>Soul 内容（直接编辑此 agent 的人格）</span>
+            <textarea name="soul_content" rows="8" placeholder="加载中…" data-soul-textarea="${escapeHtml(item.name)}"></textarea>
+          </label>
+          <label class="form-field full">
+            <span>允许的 MCP</span>
+            ${renderCheckboxes(currentMcpOptions(), item.allowed_mcps || [])}
+          </label>
+          <label class="form-field full">
+            <span>允许的 Skills</span>
+            ${renderCheckboxes(currentSkillNames().map((name) => ({ value: name, label: name })), item.allowed_skills || [])}
+          </label>
+        </div>
+        <div class="toolbar">
+          <button type="submit">保存</button>
+          <button type="button" class="danger" data-agent-delete="${escapeHtml(item.name)}">删除</button>
+        </div>
+      </form>
+    `,
+    {
+      onToggle: async (key, enabled) => {
+        try {
+          await api(`/api/manage/agents/${encodeURIComponent(key)}`, {
+            method: "PUT",
+            body: { enabled },
+          });
+          await loadAgents();
+        } catch (err) {
+          alert(err.message || err);
+        }
+      },
+      onExpand: async (item, row) => {
+        // 展开时懒加载该 agent 的 soul 内容
+        const ta = row.querySelector(`textarea[data-soul-textarea="${CSS.escape(item.name)}"]`);
+        if (!ta || ta.dataset.loaded) return;
+        try {
+          const data = await api(`/api/manage/agents/${encodeURIComponent(item.name)}/soul`);
+          const content = data.content;
+          ta.value = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+          ta.dataset.loaded = "1";
+        } catch (_) {
+          ta.placeholder = "暂无 soul 内容";
+        }
+      },
+    }
+  );
+}
+
+async function submitAgentForm(name, form) {
+  const mcpOptions = currentMcpOptions();
+  const skillOptions = currentSkillNames().map((n) => ({ value: n, label: n }));
+  const checkedValues = Array.from(form.querySelectorAll('input[type="checkbox"]:checked')).map((node) => node.value);
+  const mcpValues = new Set(mcpOptions.map((item) => item.value));
+  const skillValues = new Set(skillOptions.map((item) => item.value));
+  const body = {
+    soul: form.elements.soul.value,
+    allowed_mcps: checkedValues.filter((v) => mcpValues.has(v)),
+    allowed_skills: checkedValues.filter((v) => skillValues.has(v)),
+  };
+  await api(`/api/manage/agents/${encodeURIComponent(name)}`, { method: "PUT", body });
+
+  // 同步保存 soul 内容（如果 textarea 已加载过）
+  const ta = form.querySelector(`textarea[data-soul-textarea="${CSS.escape(name)}"]`);
+  if (ta && ta.dataset.loaded) {
+    const raw = ta.value;
+    let content = raw;
+    try { content = JSON.parse(raw); } catch (_) {}
+    await api(`/api/manage/agents/${encodeURIComponent(name)}/soul`, { method: "PUT", body: { content } });
   }
+}
 
+function bindAgentForms() {
+  document.querySelectorAll("form[data-agent-form]").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await submitAgentForm(form.dataset.agentForm, form);
+        await loadAgents();
+      } catch (err) { alert(err.message || err); }
+    });
+  });
+  document.querySelectorAll("[data-agent-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.agentDelete;
+      if (!confirm(`确认删除 agent ${name} 吗？`)) return;
+      try {
+        await api(`/api/manage/agents/${encodeURIComponent(name)}`, { method: "DELETE" });
+        await loadAgents();
+      } catch (err) { alert(err.message || err); }
+    });
+  });
+  // 应用 soul 模板：把模板内容覆写到 textarea，不立即保存
+  document.querySelectorAll("[data-apply-soul]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.applySoul;
+      const form = btn.closest("form[data-agent-form]");
+      if (!form) return;
+      const soulName = form.elements.soul.value;
+      try {
+        const data = await api(`/api/manage/souls/${encodeURIComponent(soulName)}`);
+        const ta = form.querySelector(`textarea[data-soul-textarea="${CSS.escape(name)}"]`);
+        if (ta) {
+          const content = data.content;
+          ta.value = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+          ta.dataset.loaded = "1";
+        }
+      } catch (err) { alert(err.message || err); }
+    });
+  });
+}
+
+function showNewAgentForm() {
+  const el = document.getElementById("agent-list");
   el.innerHTML = `
-    <form id="agent-form" class="detail-pane-form">
-      <div class="form-grid">
-        <label class="form-field">
-          <span>名称</span>
-          <input name="name" value="${escapeHtml(target.name || "")}" ${isNew ? "" : "disabled"} />
-        </label>
-        <label class="form-field">
-          <span>Soul</span>
-          <select name="soul">
-            ${currentSoulNames().map((name) => `<option value="${escapeHtml(name)}" ${name === target.soul ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
-          </select>
-        </label>
-        <label class="form-field full">
-          <span>允许的 MCP</span>
-          ${renderCheckboxes(currentMcpOptions(), target.allowed_mcps || [])}
-        </label>
-        <label class="form-field full">
-          <span>允许的 Skills</span>
-          ${renderCheckboxes(currentSkillNames().map((name) => ({ value: name, label: name })), target.allowed_skills || [])}
-        </label>
-        <label class="form-field">
-          <span>状态</span>
-          <select name="enabled">
-            <option value="true" ${target.enabled ? "selected" : ""}>启用</option>
-            <option value="false" ${!target.enabled ? "selected" : ""}>禁用</option>
-          </select>
-        </label>
+    <div class="row expanded" data-row="__new__">
+      <div class="row-head">
+        <span class="row-name">新建 Agent</span>
+        <span class="row-caret" style="transform: rotate(90deg);">▶</span>
       </div>
-      <div class="toolbar">
-        <button type="submit">${isNew ? "创建" : "保存"}</button>
-        ${isNew ? "" : '<button type="button" class="danger" id="delete-agent-btn">删除</button>'}
+      <div class="row-body">
+        <form id="new-agent-form">
+          <div class="form-grid">
+            <label class="form-field">
+              <span>名称</span>
+              <input name="name" required />
+            </label>
+            <label class="form-field">
+              <span>Soul</span>
+              <select name="soul">
+                ${currentSoulNames().map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="form-field full">
+              <span>允许的 MCP</span>
+              ${renderCheckboxes(currentMcpOptions(), [])}
+            </label>
+            <label class="form-field full">
+              <span>允许的 Skills</span>
+              ${renderCheckboxes(currentSkillNames().map((name) => ({ value: name, label: name })), [])}
+            </label>
+          </div>
+          <div class="toolbar">
+            <button type="submit">创建</button>
+            <button type="button" class="secondary" id="cancel-new-agent">取消</button>
+          </div>
+        </form>
       </div>
-    </form>
+    </div>
   `;
-
-  const form = document.getElementById("agent-form");
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  document.getElementById("cancel-new-agent").addEventListener("click", () => renderAgents());
+  document.getElementById("new-agent-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
     const mcpOptions = currentMcpOptions();
-    const skillOptions = currentSkillNames().map((name) => ({ value: name, label: name }));
+    const skillOptions = currentSkillNames().map((n) => ({ value: n, label: n }));
     const checkedValues = Array.from(form.querySelectorAll('input[type="checkbox"]:checked')).map((node) => node.value);
     const mcpValues = new Set(mcpOptions.map((item) => item.value));
     const skillValues = new Set(skillOptions.map((item) => item.value));
     const body = {
+      name: form.elements.name.value.trim(),
       soul: form.elements.soul.value,
-      enabled: form.elements.enabled.value === "true",
-      allowed_mcps: checkedValues.filter((value) => mcpValues.has(value)),
-      allowed_skills: checkedValues.filter((value) => skillValues.has(value)),
+      allowed_mcps: checkedValues.filter((v) => mcpValues.has(v)),
+      allowed_skills: checkedValues.filter((v) => skillValues.has(v)),
+      enabled: true,
     };
-
     try {
-      if (isNew) {
-        body.name = form.elements.name.value.trim();
-        await api("/api/manage/agents", { method: "POST", body });
-      } else {
-        await api(`/api/manage/agents/${encodeURIComponent(target.name)}`, { method: "PUT", body });
-      }
+      await api("/api/manage/agents", { method: "POST", body });
       await loadAgents();
-    } catch (error) {
-      alert(error.message || error);
-    }
+    } catch (err) { alert(err.message || err); }
   });
-
-  if (!isNew) {
-    document.getElementById("delete-agent-btn").addEventListener("click", async () => {
-      if (!confirm(`确认删除 agent ${target.name} 吗？`)) return;
-      try {
-        await api(`/api/manage/agents/${encodeURIComponent(target.name)}`, { method: "DELETE" });
-        await loadAgents();
-      } catch (error) {
-        alert(error.message || error);
-      }
-    });
-  }
 }
 
+/* ── MCP panel ────────────────────────────────────────────────── */
 function renderMcpPanel() {
   const items = state.mcpData?.items || [];
-  const selectedId = state.selectedMcpId || items[0]?.id || null;
-  state.selectedMcpId = selectedId;
-  renderList(
+  renderRowList(
     "mcp-server-list",
     items,
-    selectedId,
-    (id) => {
-      state.selectedMcpId = id;
-      renderMcpPanel();
+    null,
+    (item) => escapeHtml(item.name || item.url || item.id),
+    (item) => {
+      if (item.kind === "local") return "本地工具";
+      return `${item.kind === "online" ? "在线" : ""} · ${item.tools?.length || item.tool_count || 0} 个工具`;
     },
-    (item, active) => `
-      <div class="list-item ${active ? "active" : ""}" data-key="${escapeHtml(item.id)}">
-        <h4>${escapeHtml(item.name || item.url || item.id)}</h4>
-        <p>${escapeHtml(item.kind === "local" ? "本地接口" : (item.url || "在线接口"))}</p>
-        <div class="meta-row">
-          <span class="badge ${item.enabled ? "success" : "danger"}">${item.enabled ? "启用" : "禁用"}</span>
-          <span class="badge">工具 ${item.tool_count || 0}</span>
-          <span class="badge">${item.kind === "local" ? "Local" : "Online"}</span>
-        </div>
-      </div>
-    `
-  );
-  renderMcpDetail(selectedId);
-}
-
-function renderMcpDetail(id) {
-  const el = document.getElementById("mcp-detail");
-  const item = (state.mcpData?.items || []).find((entry) => entry.id === id);
-  if (!item) {
-    el.innerHTML = '<div class="empty-state">请选择一个 MCP 接口</div>';
-    return;
-  }
-
-  el.innerHTML = `
-    <div class="card">
-      <h3>${escapeHtml(item.name || item.url || item.id)}</h3>
-      <p>${escapeHtml(item.description || (item.kind === "local" ? "本地 MCP 接口" : item.url || ""))}</p>
+    (item) => `
       <div class="meta-row">
-        <span class="badge ${item.enabled ? "success" : "danger"}">${item.enabled ? "启用" : "禁用"}</span>
-        <span class="badge">工具 ${item.tool_count || 0}</span>
+        <span class="badge">${item.kind === "local" ? "Local" : "Online"}</span>
         ${item.version ? `<span class="badge">${escapeHtml(item.version)}</span>` : ""}
+        ${item.last_refresh_at ? `<span class="badge">最近：${escapeHtml(item.last_refresh_at)}</span>` : ""}
       </div>
+      ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
       ${item.url ? `<pre class="code-block">${escapeHtml(item.url)}</pre>` : ""}
-      ${item.last_refresh_at ? `<p>最近刷新：${escapeHtml(item.last_refresh_at)}</p>` : ""}
       ${item.last_error ? `<pre class="code-block">${escapeHtml(item.last_error)}</pre>` : ""}
-      ${item.kind === "online" ? `
-        <div class="toolbar">
-          <button id="toggle-mcp-server-btn">${item.enabled ? "禁用" : "启用"}</button>
+      ${item.tools?.length ? `
+        <div>
+          <div class="sidebar-title">工具</div>
+          <div class="checkbox-grid">
+            ${item.tools.map((tool) => `
+              <div class="checkbox-item">
+                <div>
+                  <strong>${escapeHtml(tool.name)}</strong>
+                  <p style="margin:2px 0 0;color:var(--muted);font-size:12px;">${escapeHtml(tool.description || "")}</p>
+                </div>
+              </div>
+            `).join("")}
+          </div>
         </div>
       ` : ""}
-    </div>
-    <div class="card">
-      <h3>接口下工具</h3>
-      ${item.tools?.length ? item.tools.map((tool) => `
-        <div class="list-item">
-          <h4>${escapeHtml(tool.name)}</h4>
-          <p>${escapeHtml(tool.description || "")}</p>
-        </div>
-      `).join("") : '<div class="empty-state">该接口暂无工具</div>'}
-    </div>
-  `;
-
-  if (item.kind === "online") {
-    document.getElementById("toggle-mcp-server-btn").addEventListener("click", async () => {
-      try {
-        await api("/api/manage/mcps/online/toggle", {
-          method: "PUT",
-          body: { url: item.url, enabled: !item.enabled },
-        });
-        await loadMcps();
-      } catch (error) {
-        alert(error.message || error);
-      }
-    });
-  }
+    `,
+    {
+      onToggle: async (key, enabled) => {
+        // renderRowList 用 item.name || item.id || item.url 生成 data-row，需用相同逻辑查找
+        const item = items.find((x) => (x.name || x.id || x.url || "") === key);
+        if (!item) return;
+        try {
+          if (item.kind === "local") {
+            await api("/api/manage/mcps/local/toggle", { method: "PUT", body: { name: item.name, enabled } });
+          } else if (item.kind === "online") {
+            await api("/api/manage/mcps/online/toggle", { method: "PUT", body: { url: item.url, enabled } });
+          }
+          await loadMcps();
+        } catch (err) { alert(err.message || err); }
+      },
+    }
+  );
 }
 
+/* ── Skills panel ─────────────────────────────────────────────── */
 function renderSkills() {
-  renderList(
+  renderRowList(
     "skills-list",
     state.skills,
-    state.selectedSkill?.name,
-    async (name) => {
-      state.selectedSkill = await api(`/api/manage/skills/${encodeURIComponent(name)}`);
-      renderSkills();
-      renderSkillDetail();
+    null,  // 初始不展开任何行，等用户点击后异步加载
+    (item) => escapeHtml(item.name),
+    (item) => escapeHtml(item.summary || ""),
+    (item) => {
+      // body 默认占位，onExpand 触发后会被覆盖
+      return `<div class="row-body-loading">点击展开加载 SKILL.md…</div>`;
     },
-    (item, active) => `
-      <div class="list-item ${active ? "active" : ""}" data-key="${escapeHtml(item.name)}">
-        <h4>${escapeHtml(item.name)}</h4>
-        <p>${escapeHtml(item.summary || "")}</p>
-        <div class="meta-row">
-          <span class="badge ${item.enabled ? "success" : "danger"}">${item.enabled ? "启用" : "禁用"}</span>
-        </div>
-      </div>
-    `
-  );
-  renderSkillDetail();
-}
-
-function renderSkillDetail() {
-  const el = document.getElementById("skills-detail");
-  if (!state.selectedSkill) {
-    el.innerHTML = '<div class="empty-state">请选择一个 skill</div>';
-    return;
-  }
-  el.innerHTML = `
-    <div class="card">
-      <h3>${escapeHtml(state.selectedSkill.name)}</h3>
-      <p>${escapeHtml(state.selectedSkill.summary || "")}</p>
-      <div class="toolbar">
-        <button id="toggle-skill-btn">${state.selectedSkill.enabled ? "禁用" : "启用"}</button>
-      </div>
-    </div>
-    <div class="card">
-      <h3>路径</h3>
-      <pre class="code-block">${escapeHtml(state.selectedSkill.path || "")}</pre>
-    </div>
-    <div class="card">
-      <h3>SKILL.md</h3>
-      <pre class="code-block">${escapeHtml(state.selectedSkill.content || "")}</pre>
-    </div>
-  `;
-
-  document.getElementById("toggle-skill-btn").addEventListener("click", async () => {
-    try {
-      await api(`/api/manage/skills/${encodeURIComponent(state.selectedSkill.name)}`, {
-        method: "PUT",
-        body: { enabled: !state.selectedSkill.enabled },
-      });
-      await loadSkills(state.selectedSkill.name);
-    } catch (error) {
-      alert(error.message || error);
+    {
+      onToggle: async (key, enabled) => {
+        try {
+          await api(`/api/manage/skills/${encodeURIComponent(key)}`, { method: "PUT", body: { enabled } });
+          await loadSkills(key);
+        } catch (err) { alert(err.message || err); }
+      },
+      onExpand: async (item, row) => {
+        if (!item) return;
+        const body = row.querySelector(".row-body");
+        if (!body) return;
+        body.innerHTML = `<div class="row-body-loading">加载中…</div>`;
+        try {
+          const detail = await api(`/api/manage/skills/${encodeURIComponent(item.name)}`);
+          state.selectedSkill = detail;
+          body.innerHTML = `
+            ${detail.path ? `<pre class="code-block">${escapeHtml(detail.path)}</pre>` : ""}
+            ${detail.content ? `<pre class="code-block">${escapeHtml(detail.content)}</pre>` : '<div class="empty-state">无内容</div>'}
+          `;
+        } catch (err) {
+          body.innerHTML = `<div class="empty-state">加载失败: ${escapeHtml(err.message || String(err))}</div>`;
+        }
+      },
     }
-  });
+  );
 }
 
+/* ── Souls panel ──────────────────────────────────────────────── */
 function renderSouls() {
-  renderList(
+  renderRowList(
     "soul-list",
     state.souls,
     state.selectedSoul?.name,
-    (name) => {
-      state.selectedSoul = state.souls.find((item) => item.name === name) || null;
-      renderSouls();
-      renderSoulDetail();
-    },
-    (item, active) => `
-      <div class="list-item ${active ? "active" : ""}" data-key="${escapeHtml(item.name)}">
-        <h4>${escapeHtml(item.name)}</h4>
-        <p>${escapeHtml(item.preview || "")}</p>
-      </div>
-    `
-  );
-  renderSoulDetail();
-}
-
-function renderSoulDetail(isNew = false) {
-  const target = isNew ? { name: "", content: "" } : state.selectedSoul;
-  const el = document.getElementById("soul-detail");
-  if (!target) {
-    el.innerHTML = '<div class="empty-state">请选择一个 soul</div>';
-    return;
-  }
-
-  const contentValue = typeof target.content === "string" ? target.content : JSON.stringify(target.content, null, 2);
-  el.innerHTML = `
-    <form id="soul-form">
-      <div class="form-grid">
-        <label class="form-field full">
-          <span>名称</span>
-          <input name="name" value="${escapeHtml(target.name || "")}" ${isNew ? "" : "disabled"} />
-        </label>
-        <label class="form-field full">
-          <span>内容</span>
-          <textarea name="content" rows="18">${escapeHtml(contentValue || "")}</textarea>
-        </label>
-      </div>
-      <div class="toolbar">
-        <button type="submit">${isNew ? "创建" : "保存"}</button>
-        ${isNew ? "" : '<button type="button" class="danger" id="delete-soul-btn">删除</button>'}
-      </div>
-    </form>
-  `;
-
-  document.getElementById("soul-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const payloadName = form.elements.name.value.trim();
-    const raw = form.elements.content.value;
-    let content = raw;
-    try {
-      content = JSON.parse(raw);
-    } catch (_) {}
-
-    try {
-      if (isNew) {
-        await api("/api/manage/souls", { method: "POST", body: { name: payloadName, content } });
-      } else {
-        await api(`/api/manage/souls/${encodeURIComponent(target.name)}`, { method: "PUT", body: { content } });
-      }
-      await loadSouls(isNew ? payloadName : target.name);
-    } catch (error) {
-      alert(error.message || error);
+    (item) => escapeHtml(item.name),
+    (item) => escapeHtml(item.preview || ""),
+    (item) => {
+      const target = state.selectedSoul?.name === item.name ? state.selectedSoul : item;
+      const contentValue = typeof target.content === "string"
+        ? target.content
+        : JSON.stringify(target.content, null, 2);
+      return `
+        <form data-soul-form="${escapeHtml(item.name)}">
+          <div class="form-grid">
+            <label class="form-field full">
+              <span>名称</span>
+              <input name="name" value="${escapeHtml(target.name || "")}" disabled />
+            </label>
+            <label class="form-field full">
+              <span>内容</span>
+              <textarea name="content" rows="14">${escapeHtml(contentValue || "")}</textarea>
+            </label>
+          </div>
+          <div class="toolbar">
+            <button type="submit">保存</button>
+            <button type="button" class="danger" data-soul-delete="${escapeHtml(item.name)}">删除</button>
+          </div>
+        </form>
+      `;
     }
+  );
+
+  document.querySelectorAll('#soul-list .row-head').forEach((head) => {
+    head.addEventListener("click", () => {
+      const key = head.closest(".row").dataset.row;
+      state.selectedSoul = state.souls.find((s) => s.name === key) || state.selectedSoul;
+    });
   });
 
-  if (!isNew) {
-    document.getElementById("delete-soul-btn").addEventListener("click", async () => {
-      if (!confirm(`确认删除 soul ${target.name} 吗？`)) return;
-      try {
-        await api(`/api/manage/souls/${encodeURIComponent(target.name)}`, { method: "DELETE" });
-        await loadSouls();
-      } catch (error) {
-        alert(error.message || error);
-      }
-    });
-  }
+  bindSoulForms();
 }
 
+function bindSoulForms() {
+  document.querySelectorAll("form[data-soul-form]").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = form.dataset.soulForm;
+      const raw = form.elements.content.value;
+      let content = raw;
+      try { content = JSON.parse(raw); } catch (_) {}
+      try {
+        await api(`/api/manage/souls/${encodeURIComponent(name)}`, { method: "PUT", body: { content } });
+        await loadSouls(name);
+      } catch (err) { alert(err.message || err); }
+    });
+  });
+  document.querySelectorAll("[data-soul-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.soulDelete;
+      if (!confirm(`确认删除 soul ${name} 吗？`)) return;
+      try {
+        await api(`/api/manage/souls/${encodeURIComponent(name)}`, { method: "DELETE" });
+        await loadSouls();
+      } catch (err) { alert(err.message || err); }
+    });
+  });
+}
+
+function showNewSoulForm() {
+  const el = document.getElementById("soul-list");
+  el.innerHTML = `
+    <div class="row expanded" data-row="__new__">
+      <div class="row-head">
+        <span class="row-name">新建 Soul</span>
+        <span class="row-caret" style="transform: rotate(90deg);">▶</span>
+      </div>
+      <div class="row-body">
+        <form id="new-soul-form">
+          <div class="form-grid">
+            <label class="form-field full">
+              <span>名称</span>
+              <input name="name" required />
+            </label>
+            <label class="form-field full">
+              <span>内容</span>
+              <textarea name="content" rows="14"></textarea>
+            </label>
+          </div>
+          <div class="toolbar">
+            <button type="submit">创建</button>
+            <button type="button" class="secondary" id="cancel-new-soul">取消</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  document.getElementById("cancel-new-soul").addEventListener("click", () => renderSouls());
+  document.getElementById("new-soul-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const name = form.elements.name.value.trim();
+    const raw = form.elements.content.value;
+    let content = raw;
+    try { content = JSON.parse(raw); } catch (_) {}
+    try {
+      await api("/api/manage/souls", { method: "POST", body: { name, content } });
+      await loadSouls(name);
+    } catch (err) { alert(err.message || err); }
+  });
+}
+
+/* ── Loaders ──────────────────────────────────────────────────── */
 async function loadConversations() {
   const data = await api("/api/conversations");
   state.conversations = data.items || [];
-  state.scheduler = data.scheduler || [];
-  if (!state.selectedConversation || !state.conversations.some((item) => item.id === state.selectedConversation.id)) {
+  const prevId = state.selectedConversation?.id;
+  if (!state.selectedConversation || !state.conversations.some((item) => item.id === prevId)) {
     state.selectedConversation = state.conversations[0] || null;
+    if (state.selectedConversation?.id !== prevId) {
+      loadChatHistory(state.selectedConversation?.id);
+    }
   } else {
-    state.selectedConversation = state.conversations.find((item) => item.id === state.selectedConversation.id) || null;
+    state.selectedConversation = state.conversations.find((item) => item.id === prevId) || null;
   }
   renderConversationList();
   renderConversationMeta();
-  renderTaskBoard();
 }
 
 async function loadAgents() {
   const data = await api("/api/manage/agents");
   state.agents = data.items || [];
-  if (!state.selectedAgent || !state.agents.some((item) => item.name === state.selectedAgent.name)) {
-    state.selectedAgent = state.agents[0] || null;
-  } else {
-    state.selectedAgent = state.agents.find((item) => item.name === state.selectedAgent.name) || null;
-  }
-  renderAgentOptions();
-  renderAgentList();
-  renderAgentDetail();
+  renderAgents();
+  bindAgentForms();
 }
 
 async function loadMcps() {
   state.mcpData = await api("/api/manage/mcps");
-  const items = state.mcpData?.items || [];
-  if (!items.some((item) => item.id === state.selectedMcpId)) {
-    state.selectedMcpId = items[0]?.id || null;
-  }
   renderMcpPanel();
-  if (document.getElementById("agent-detail")?.querySelector("#agent-form")) {
-    renderAgentDetail();
-  }
 }
 
 async function loadSkills(selectedName = null) {
   const data = await api("/api/manage/skills");
   state.skills = data.items || [];
   if (selectedName) {
-    state.selectedSkill = await api(`/api/manage/skills/${encodeURIComponent(selectedName)}`);
-  } else if (state.skills.length) {
-    state.selectedSkill = await api(`/api/manage/skills/${encodeURIComponent(state.skills[0].name)}`);
-  } else {
-    state.selectedSkill = null;
+    try {
+      state.selectedSkill = await api(`/api/manage/skills/${encodeURIComponent(selectedName)}`);
+    } catch (_) { state.selectedSkill = null; }
   }
+  // 不预选：避免空 detail 让 row 显示空白 body
   renderSkills();
 }
 
@@ -721,7 +906,11 @@ async function loadSouls(selectedName = null) {
   renderSouls();
 }
 
+/* ── Boot ─────────────────────────────────────────────────────── */
 async function boot() {
+  // 建立全局持久 SSE 流（最先执行）
+  connectGlobalStream();
+
   document.querySelectorAll(".nav-btn").forEach((button) => {
     button.addEventListener("click", () => setActivePanel(button.dataset.panel));
   });
@@ -735,9 +924,17 @@ async function boot() {
   });
   input.addEventListener("input", autoResize);
 
+  // 团队任务模式切换按钮
+  const teamModeBtn = document.getElementById("team-mode-btn");
+  teamModeBtn.addEventListener("click", () => {
+    state.teamMode = !state.teamMode;
+    teamModeBtn.classList.toggle("active", state.teamMode);
+    teamModeBtn.setAttribute("aria-pressed", String(state.teamMode));
+  });
+
   document.getElementById("new-single-chat-btn").addEventListener("click", () => createSingleConversation().catch((error) => alert(error.message || error)));
   document.getElementById("new-group-chat-btn").addEventListener("click", () => createGroupConversation().catch((error) => alert(error.message || error)));
-  document.getElementById("new-agent-btn").addEventListener("click", () => renderAgentDetail(true));
+  document.getElementById("new-agent-btn").addEventListener("click", () => showNewAgentForm());
   document.getElementById("refresh-agent-btn").addEventListener("click", loadAgents);
   document.getElementById("refresh-mcp-btn").addEventListener("click", async () => {
     await api("/api/manage/mcps/online/refresh", { method: "POST" });
@@ -758,10 +955,15 @@ async function boot() {
     await api("/api/manage/skills/rescan", { method: "POST" });
     await loadSkills();
   });
-  document.getElementById("new-soul-btn").addEventListener("click", () => renderSoulDetail(true));
+  document.getElementById("new-soul-btn").addEventListener("click", () => showNewSoulForm());
   document.getElementById("refresh-soul-btn").addEventListener("click", loadSouls);
 
-  await Promise.all([loadMcps(), loadSkills(), loadSouls(), loadAgents(), loadConversations()]);
+  // 직렬화: Agent 폼은 Mcps/Skills/Souls 옵션에 의존하므로 먼저 채움
+  await loadMcps();
+  await loadSkills();
+  await loadSouls();
+  await loadAgents();
+  await loadConversations();
 }
 
 boot().catch((error) => {

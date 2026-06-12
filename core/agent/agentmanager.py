@@ -8,7 +8,7 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-
+import asyncio
 from core.soul.soul import Soul
 
 BASE_PATH = Path(__file__).resolve().parent.parent.parent
@@ -30,7 +30,7 @@ def _ensure_agent_dirs(name: str) -> Path:
 
 def _normalize_entry(entry: dict) -> dict:
     now = _now()
-    return {
+    result = {
         "name": entry.get("name", ""),
         "soul": entry.get("soul", "default"),
         "allowed_mcps": list(entry.get("allowed_mcps") or []),
@@ -39,6 +39,9 @@ def _normalize_entry(entry: dict) -> dict:
         "created_at": entry.get("created_at") or now,
         "updated_at": entry.get("updated_at") or now,
     }
+    if entry.get("last_active_session"):
+        result["last_active_session"] = entry["last_active_session"]
+    return result
 
 
 def _load_registry() -> list[dict]:
@@ -173,3 +176,93 @@ def delete_agent(name: str) -> None:
 
 def get_agent_names() -> list[str]:
     return [entry["name"] for entry in list_agents() if entry.get("enabled", True)]
+
+
+def persist_last_active_session(name: str, session_id: str) -> None:
+    """把 last_active_session 写入 agent.json 和注册表，供下次启动时做总结用。"""
+    entries = list_agents()
+    for entry in entries:
+        if entry["name"] == name:
+            entry["last_active_session"] = session_id
+            _write_agent_config(entry)
+            _save_registry(entries)
+            return
+
+class AgentManager:
+    def __init__(self):
+        self.AgentMap: dict = {}
+        self._tasks: set = set()
+
+    def _get_or_create(self, name: str):
+        from .agent import Agent
+        if name not in self.AgentMap:
+            if get_agent_config(name):
+                self.AgentMap[name] = Agent(name)
+            else:
+                return None
+        return self.AgentMap[name]
+
+    def _extract_mentions(self, text: str, all_names: list[str]) -> list[str]:
+        if not isinstance(text, str):
+            return []
+        return [name for name in all_names if f"@{name.lower()}" in text.lower()]
+
+    def _register_task(self, task) -> None:
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    def _get_raw_on_event(self, relay_or_event):
+        """从 relay 闭包里取回原始 on_event（Flask 队列推送函数）。"""
+        return getattr(relay_or_event, "_raw_on_event", relay_or_event)
+
+    async def CallAgent(self, name: str, conv_id: str, message: str, all_members: list[str], on_event=None) -> str:
+        agent = self._get_or_create(name)
+        if agent is None:
+            return ""
+
+        import uuid as _uuid
+        turn_key = f"{name}::{_uuid.uuid4().hex[:8]}"
+
+        def relay(event: dict):
+            if on_event is None:
+                return
+            etype = event.get("type")
+            d = event.get("data", {})
+            base = {"agent_name": name, "turn_key": turn_key}
+            if etype == "cycle_message":
+                content = d.get("content") or ""
+                if content:
+                    on_event({"type": "cycle_message", "data": {**base, "content": content,
+                                                                "cycle_index": event.get("cycle_index")}})
+            elif etype == "tool_call":
+                on_event({"type": "tool_call", "data": {**base, **d}})
+            elif etype == "tool_result":
+                on_event({"type": "tool_result", "data": {**base, **d}})
+            elif etype == "final_answer":
+                content = d.get("content") or ""
+                if content:
+                    on_event({"type": "final_answer", "data": {**base, "content": content}})
+
+        # 把原始 on_event 挂在 relay 上，供 @mention 子任务取回
+        relay._raw_on_event = on_event
+
+        return await agent.ActiveChat(self, conv_id, message, relay, all_members)
+
+    async def run_group_chat(self, owner_name: str, conv_id: str, message: str, all_members: list[str], on_event=None):
+        # 扫描用户消息中的 @mention，对被点名的成员（除群主外）并行触发
+        raw_on_event = self._get_raw_on_event(on_event)
+        user_mentions = [
+            name for name in self._extract_mentions(message, all_members)
+            if name != owner_name
+        ]
+        for name in user_mentions:
+            t = asyncio.create_task(self.CallAgent(name, conv_id, None, all_members, raw_on_event))
+            self._register_task(t)
+
+        await self.CallAgent(owner_name, conv_id, message, all_members, on_event)
+        # 等待 @mention 触发的所有后台 task 完成
+        while self._tasks:
+            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+
+
+AGENT_MANAGER = AgentManager()

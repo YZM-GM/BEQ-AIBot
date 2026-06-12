@@ -1,12 +1,38 @@
-[project]
+﻿[project]
 name = "aibot"
 version = "0.1.0"
-description = "Add your description here"
+description = "AIBot with IndexTTS integration"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "ffmpeg>=1.4",
     "flask>=3.0",
     "mcp>=1.27.2",
+    "openai-whisper>=20250625",
     "python-dotenv>=1.0",
     "requests>=2.32",
+    "rich>=15.0.0",
+    "accelerate==1.8.1",
+    "cn2an==0.5.22",
+    "cython==3.0.7",
+    "descript-audiotools==0.7.2",
+    "einops>=0.8.1",
+    "librosa==0.10.2.post1",
+    "modelscope==1.27.0",
+    "numpy==1.26.2",
+    "torchaudio==2.8.*",
+    "transformers==4.52.1",
+
 ]
+
+[tool.uv]
+
+no-build-isolation-package = ["deepspeed"]
+
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+torch = { index = "pytorch-cuda" }
+torchaudio = { index = "pytorch-cuda" }

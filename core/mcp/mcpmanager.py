@@ -16,6 +16,8 @@ LOCAL_DATA = MCP_DIR / "localmcpdata.json"
 ONLINE_DATA = MCP_DIR / "onlinemcpdata.json"
 SERVER_REGISTRY = MCP_DIR / "mcpservers.json"
 
+_LOCAL_PREFIX = "local::"
+
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
@@ -64,30 +66,51 @@ def _save_server_registry(data: dict) -> None:
 def list_local_mcps() -> list[dict]:
     data = _load_json(LOCAL_DATA, {})
     tools = data.get("tools", []) if isinstance(data, dict) else []
-    return [
-        {
-            "name": tool.get("name", ""),
-            "description": tool.get("description", ""),
-            "inputSchema": tool.get("inputSchema", {}),
-            "source": "local",
-            "enabled": True,
-        }
-        for tool in tools
-    ]
+    registry = _load_server_registry()
+    result = []
+    for tool in tools:
+        name = tool.get("name", "")
+        key = f"{_LOCAL_PREFIX}{name}"
+        meta = registry.get(key)
+        enabled = bool(meta.get("enabled", True)) if isinstance(meta, dict) else True
+        result.append(
+            {
+                "name": name,
+                "description": tool.get("description", ""),
+                "inputSchema": tool.get("inputSchema", {}),
+                "source": "local",
+                "enabled": enabled,
+            }
+        )
+    return result
 
 
+def get_enabled_local_tool_names() -> set[str]:
+    return {tool["name"] for tool in list_local_mcps() if tool.get("enabled", True)}
 
-def get_local_mcp_entry() -> dict:
-    tools = list_local_mcps()
+
+def set_local_tool_enabled(name: str, enabled: bool) -> dict:
+    data = _load_json(LOCAL_DATA, {})
+    tools = data.get("tools", []) if isinstance(data, dict) else []
+    tool_names = {t.get("name") for t in tools if isinstance(t, dict)}
+    if name not in tool_names:
+        raise ValueError(f"本地工具不存在: {name}")
+    registry = _load_server_registry()
+    key = f"{_LOCAL_PREFIX}{name}"
+    registry.setdefault(key, {"name": name, "kind": "local_tool"})
+    registry[key]["enabled"] = bool(enabled)
+    _save_server_registry(registry)
+    tool = next((t for t in tools if t.get("name") == name), {})
     return {
-        "id": "local",
+        "id": key,
         "kind": "local",
-        "name": "本地 MCP",
-        "description": "由本地注册表暴露的 MCP 工具集合",
-        "enabled": True,
-        "tool_count": len(tools),
-        "tools": tools,
+        "name": name,
+        "description": tool.get("description", ""),
+        "inputSchema": tool.get("inputSchema", {}),
+        "source": "local",
+        "enabled": bool(enabled),
     }
+
 
 
 def list_online_servers() -> list[dict]:
@@ -95,6 +118,8 @@ def list_online_servers() -> list[dict]:
     online = _load_json(ONLINE_DATA, {})
     result = []
     for url, meta in registry.items():
+        if url.startswith(_LOCAL_PREFIX):  # 跳过本地工具条目，只处理在线服务器
+            continue
         info = online.get(url, {}) if isinstance(online, dict) else {}
         server_info = info.get("server_info", {}) if isinstance(info, dict) else {}
         result.append(
@@ -179,10 +204,25 @@ def set_online_server_enabled(url: str, enabled: bool) -> dict:
 
 
 def list_all_mcps() -> dict:
-    local_entry = get_local_mcp_entry()
+    local_tools = list_local_mcps()
     online_servers = list_online_servers()
     online = _load_json(ONLINE_DATA, {})
-    interfaces = [local_entry]
+
+    interfaces: list[dict] = []
+    for tool in local_tools:
+        key = f"{_LOCAL_PREFIX}{tool['name']}"
+        interfaces.append(
+            {
+                "id": key,
+                "kind": "local",
+                "name": tool["name"],
+                "description": tool.get("description", ""),
+                "enabled": tool.get("enabled", True),
+                "tool_count": 1,
+                "tools": [tool],
+            }
+        )
+
     if isinstance(online, dict):
         for server in online_servers:
             url = server["url"]
@@ -203,17 +243,16 @@ def list_all_mcps() -> dict:
                     "last_error": server.get("last_error", ""),
                     "tools": [
                         {
-                            "name": tool.get("name", ""),
-                            "description": tool.get("description", ""),
-                            "inputSchema": tool.get("inputSchema", {}),
+                            "name": t.get("name", ""),
+                            "description": t.get("description", ""),
+                            "inputSchema": t.get("inputSchema", {}),
                             "source": "online",
                         }
-                        for tool in info.get("tools", [])
+                        for t in info.get("tools", [])
                     ],
                 }
             )
     return {
         "items": interfaces,
-        "local": local_entry,
         "online_servers": online_servers,
     }

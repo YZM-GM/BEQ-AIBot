@@ -1,0 +1,25 @@
+{
+  "name": "bot3",
+  "soul": "default",
+  "allowed_mcps": [
+    "local::list_directory",
+    "local::create_text_file",
+    "local::read_file",
+    "local::run_bash_command",
+    "local::task_generate",
+    "local::get_skill",
+    "local::request_url",
+    "https://mcp.api-inference.modelscope.net/3dd3be13b2f947/sse",
+    "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse",
+    "local::task_generate",
+    "local::list_directory",
+    "https://mcp.api-inference.modelscope.net/688dda025c6f46/sse"
+  ],
+  "allowed_skills": [
+    "group-member",
+    "systematic-travel-planning"
+  ],
+  "enabled": true,
+  "created_at": "2026-06-12T16:20:36",
+  "updated_at": "2026-06-12T16:20:36"
+}

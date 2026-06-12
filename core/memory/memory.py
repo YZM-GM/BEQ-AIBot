@@ -24,8 +24,10 @@ class Memory:
         self.memory_path = basepath / "core" / "agent" / name / "memory"
         self.session_memory_filepath = self.memory_path / "sessions"
         self.diary_memory_filepath = self.memory_path / "diary.json"
+        self.longterm_memory_filepath = self.memory_path / "longterm.json"
         self.session_memory_filepath.mkdir(parents=True, exist_ok=True)
         self.diary_memory = self._load_diary_memory()
+        self.longterm_memory = self._load_longterm_memory()
 
     def _session_file(self, session_id: str) -> Path:
         safe_name = (session_id or "default").replace("/", "_").replace("\\", "_")
@@ -47,6 +49,24 @@ class Memory:
     def _save_session_memory(self, session_id: str, records: list[dict]) -> None:
         with open(self._session_file(session_id), "w", encoding="utf-8") as f:
             json.dump(records, f, ensure_ascii=False, indent=2)
+
+    def _load_longterm_memory(self) -> list:
+        if self.longterm_memory_filepath.exists():
+            with open(self.longterm_memory_filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, list) else []
+
+        with open(self.longterm_memory_filepath, "w", encoding="utf-8") as f:
+            json.dump([], f, ensure_ascii=False, indent=2)
+        return []
+
+    def _save_longterm_memory(self) -> None:
+        with open(self.longterm_memory_filepath, "w", encoding="utf-8") as f:
+            json.dump(self.longterm_memory, f, ensure_ascii=False, indent=2)
+
+    def add_longterm_memory(self, mem:str) -> None:
+        self.longterm_memory.append(mem)
+        self._save_longterm_memory()
 
     def _load_diary_memory(self) -> list:
         if self.diary_memory_filepath.exists():
@@ -131,6 +151,11 @@ class Memory:
             session_file.unlink()
         return summary
 
+    async def flush_session_to_diary_async(self, session_id: str) -> str:
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.flush_session_to_diary, session_id)
+
     def maybe_rollover_session(self, conversation_id: str, session_id: str | None = None) -> str | None:
         target_session = session_id or self._make_session_id(conversation_id=conversation_id)
         records = self.load_session_memory(target_session)
@@ -152,16 +177,22 @@ class Memory:
 
     def GetMemory(self, conversation_id: str | None = None, current_agent: str | None = None) -> list[dict]:
         messages: list[dict] = []
-        diary_scope = [item for item in self._load_diary_memory() if conversation_id is None or str(item.get("session_id", "")).startswith(f"{conversation_id}__")]
-        messages.append({"role": "system", "content": "历史聊天概括：" + json.dumps(diary_scope, ensure_ascii=False)})
 
+        # 长期记忆和 diary 全量载入
+        longterm_scope = self._load_longterm_memory()
+        diary_scope = self._load_diary_memory()
+        messages.append({"role": "system", "content": "这些是你的长期记忆：" + json.dumps(longterm_scope, ensure_ascii=False)})
+        messages.append({"role": "system", "content": "这些是从你创建开始我们聊过内容的聊天概括：" + json.dumps(diary_scope, ensure_ascii=False)})
+
+        # session 记忆只载入当前会话，取最近 80 条
         session_ids = self.list_session_ids()
         if conversation_id is not None:
-            session_ids = [session_id for session_id in session_ids if session_id.startswith(f"{conversation_id}__")]
+            session_ids = [sid for sid in session_ids if sid.startswith(f"{conversation_id}__")]
         session_ids = sorted(session_ids)
         session_records: list[dict] = []
         for session_id in session_ids:
             session_records.extend(self.load_session_memory(session_id))
+        session_records = session_records[-80:]
 
         for item in session_records:
             if not isinstance(item, dict):

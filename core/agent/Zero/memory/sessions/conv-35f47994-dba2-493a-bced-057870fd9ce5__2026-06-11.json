@@ -1,0 +1,32 @@
+[
+  {
+    "role": "user",
+    "content": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上",
+    "kind": "user_message",
+    "timestamp": "2026-06-11T14:00:22",
+    "conversation_id": "conv-35f47994-dba2-493a-bced-057870fd9ce5",
+    "speaker": "user",
+    "source_agent": "user",
+    "session_id": "conv-35f47994-dba2-493a-bced-057870fd9ce5__2026-06-11"
+  },
+  {
+    "role": "user",
+    "content": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上",
+    "kind": "user_message",
+    "timestamp": "2026-06-11T14:01:57",
+    "conversation_id": "conv-35f47994-dba2-493a-bced-057870fd9ce5",
+    "speaker": "user",
+    "source_agent": "user",
+    "session_id": "conv-35f47994-dba2-493a-bced-057870fd9ce5__2026-06-11"
+  },
+  {
+    "role": "user",
+    "content": "我的桌面路径是\"C:\\Users\\11765\\Desktop\"，请你安排一封详细的旅游安排，从杭州到四川成都，详细到酒店安排和吃饭饭店选择，放在桌面上",
+    "kind": "user_message",
+    "timestamp": "2026-06-11T14:17:21",
+    "conversation_id": "conv-35f47994-dba2-493a-bced-057870fd9ce5",
+    "speaker": "user",
+    "source_agent": "user",
+    "session_id": "conv-35f47994-dba2-493a-bced-057870fd9ce5__2026-06-11"
+  }
+]

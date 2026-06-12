@@ -3,21 +3,56 @@
     "url": "https://mcp.api-inference.modelscope.net/3dd3be13b2f947/sse",
     "enabled": true,
     "name": "bing-cn-search",
-    "last_refresh_at": "2026-06-09T13:55:27.580738+00:00",
-    "last_error": ""
-  },
-  "https://mcp.api-inference.modelscope.net/94c3697dbc1945/sse": {
-    "url": "https://mcp.api-inference.modelscope.net/94c3697dbc1945/sse",
-    "enabled": true,
-    "name": "mcp-server/amap-maps",
-    "last_refresh_at": "2026-06-09T13:55:30.391441+00:00",
+    "last_refresh_at": "2026-06-12T08:43:52.792184+00:00",
     "last_error": ""
   },
   "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse": {
     "url": "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse",
     "enabled": true,
     "name": "12306-mcp",
-    "last_refresh_at": "2026-06-09T13:55:36.384972+00:00",
+    "last_refresh_at": "2026-06-12T08:43:52.866137+00:00",
     "last_error": ""
+  },
+  "https://mcp.api-inference.modelscope.net/688dda025c6f46/sse": {
+    "url": "https://mcp.api-inference.modelscope.net/688dda025c6f46/sse",
+    "enabled": true,
+    "name": "mcp-server/amap-maps",
+    "last_refresh_at": "2026-06-12T08:43:53.073269+00:00",
+    "last_error": ""
+  },
+  "local::list_directory": {
+    "name": "list_directory",
+    "kind": "local_tool",
+    "enabled": true
+  },
+  "local::create_text_file": {
+    "name": "create_text_file",
+    "kind": "local_tool",
+    "enabled": true
+  },
+  "local::read_file": {
+    "name": "read_file",
+    "kind": "local_tool",
+    "enabled": true
+  },
+  "local::run_bash_command": {
+    "name": "run_bash_command",
+    "kind": "local_tool",
+    "enabled": true
+  },
+  "local::task_generate": {
+    "name": "task_generate",
+    "kind": "local_tool",
+    "enabled": true
+  },
+  "local::get_skill": {
+    "name": "get_skill",
+    "kind": "local_tool",
+    "enabled": true
+  },
+  "local::request_url": {
+    "name": "request_url",
+    "kind": "local_tool",
+    "enabled": true
   }
 }

@@ -60,7 +60,7 @@ def registry_skills() -> None:
             continue
         with open(skillmdpath, "r", encoding="utf-8") as f:
             skillmd = f.read()
-        summary = mc.BaseModelCall(f"总结这个skill，生成他的skill介绍，什么时候调用以及功能用途，100字以内，输出仅包含功能用途，不要多余的话，要无格式字符串：{skillmd}")
+        summary = mc.BaseModelCall(f"生成这个skill的调用时机说明，什么时候调用，100字以内，输出仅包含这些，不要多余的话，要无格式字符串：{skillmd}")
         skillinfo[name] = {
             "summary": summary or "",
             "enabled": True,

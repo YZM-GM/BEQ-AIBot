@@ -1,6 +1,6 @@
 {
-    "systematic-travel-planning": {
-        "summary": "旅游安排skill，根据用户提供的约束条件（时间、预算、节奏、人群），系统化验证地点间的通勤时间和体力极限，生成含缓冲与备选方案的可行行程，避免无效输出。",
-        "enabled": true
-    }
+  "systematic-travel-planning": {
+    "summary": "旅游安排skill，当用户提出以下意图时，必须无条件触发：\n-帮我规划去,X地的旅行\n-给我一份Y城市的3日游攻略\n-要求修改、评估或优化现有的旅行路线",
+    "enabled": true
+  }
 }

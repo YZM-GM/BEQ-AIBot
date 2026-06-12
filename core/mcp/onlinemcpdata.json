@@ -68,9 +68,9 @@
         }
       }
     ],
-    "last_updated": "2026-06-09T13:55:27.580738+00:00"
+    "last_updated": "2026-06-12T12:01:38.224132+00:00"
   },
-  "https://mcp.api-inference.modelscope.net/94c3697dbc1945/sse": {
+  "https://mcp.api-inference.modelscope.net/688dda025c6f46/sse": {
     "server_info": {
       "name": "mcp-server/amap-maps",
       "version": "1.9.4"
@@ -328,7 +328,7 @@
         }
       }
     ],
-    "last_updated": "2026-06-09T13:55:30.391441+00:00"
+    "last_updated": "2026-06-12T12:01:38.213137+00:00"
   },
   "https://mcp.api-inference.modelscope.net/682eb9b09e0244/sse": {
     "server_info": {
@@ -605,6 +605,6 @@
         }
       }
     ],
-    "last_updated": "2026-06-09T13:55:36.384972+00:00"
+    "last_updated": "2026-06-12T12:01:41.411171+00:00"
   }
 }
