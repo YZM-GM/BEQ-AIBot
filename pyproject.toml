@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "aibot"
 version = "0.1.0"
 description = "AIBot with IndexTTS integration"
@@ -22,7 +22,10 @@ dependencies = [
     "numpy==1.26.2",
     "torchaudio==2.8.*",
     "transformers==4.52.1",
-
+    "live2d-py>=0.7.0.4",
+    "glfw>=2.10.0",
+    "live2dtk>=1.0.1",
+    "pyaudio>=0.2.14",
 ]
 
 [tool.uv]

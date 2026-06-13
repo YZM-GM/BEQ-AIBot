@@ -1,0 +1,28 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "悠小喵.moc3",
+		"Textures": [
+			"悠小喵.8192/texture_00.png",
+			"悠小喵.8192/texture_01.png"
+		],
+		"Physics": "悠小喵.physics3.json",
+		"DisplayInfo": "悠小喵.cdi3.json"
+	},
+
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		}
+	]
+}
